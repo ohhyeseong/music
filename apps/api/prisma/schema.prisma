@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(uuid()) @db.Char(36)
+  email        String        @unique @db.VarChar(254)
+  passwordHash String        @db.VarChar(255)
+  displayName  String        @db.VarChar(40)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  sessions     AuthSession[]
+  playlists    Playlist[]
+}
+
+model AuthSession {
+  id               String    @id @default(uuid()) @db.Char(36)
+  userId           String    @db.Char(36)
+  refreshTokenHash String    @unique @db.VarChar(64)
+  clientType       String    @default("web") @db.VarChar(16)
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model Track {
+  id                String          @id @default(uuid()) @db.Char(36)
+  title             String          @db.VarChar(255)
+  albumTitle        String          @db.VarChar(255)
+  durationMs        Int
+  isrc              String?         @db.VarChar(16)
+  artworkUrl        String?         @db.VarChar(2048)
+  artworkSourceUrl  String?         @db.VarChar(2048)
+  externalUrl       String?         @db.VarChar(2048)
+  palette           Int             @default(0)
+  isDemo            Boolean         @default(false)
+  metadataExpiresAt DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  artists           TrackArtist[]
+  sources           TrackSource[]
+  genres            TrackGenre[]
+  moods             TrackMood[]
+  playlistTracks    PlaylistTrack[]
+
+  @@index([isrc])
+}
+
+model Artist {
+  id            String        @id @default(uuid()) @db.Char(36)
+  name          String        @db.VarChar(255)
+  musicbrainzId String?       @unique @db.Char(36)
+  createdAt     DateTime      @default(now())
+  tracks        TrackArtist[]
+}
+
+model TrackArtist {
+  trackId     String @db.Char(36)
+  artistId    String @db.Char(36)
+  creditOrder Int    @default(0)
+  role        String @default("primary") @db.VarChar(32)
+  track       Track  @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  artist      Artist @relation(fields: [artistId], references: [id])
+
+  @@id([trackId, artistId])
+}
+
+model TrackSource {
+  id              String    @id @default(uuid()) @db.Char(36)
+  trackId         String    @db.Char(36)
+  provider        String    @db.VarChar(32)
+  externalTrackId String    @db.VarChar(100)
+  countryCode     String    @default("global") @db.VarChar(8)
+  sourceUrl       String?   @db.VarChar(2048)
+  fetchedAt       DateTime  @default(now())
+  expiresAt       DateTime?
+  track           Track     @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalTrackId, countryCode])
+}
+
+model Genre {
+  id          String       @id @default(uuid()) @db.Char(36)
+  slug        String       @unique @db.VarChar(80)
+  nameKo      String       @db.VarChar(80)
+  nameEn      String       @db.VarChar(80)
+  description String?      @db.Text
+  tracks      TrackGenre[]
+}
+
+model Mood {
+  id     String      @id @default(uuid()) @db.Char(36)
+  slug   String      @unique @db.VarChar(80)
+  nameKo String      @db.VarChar(80)
+  tracks TrackMood[]
+}
+
+model TrackGenre {
+  id             String    @id @default(uuid()) @db.Char(36)
+  trackId        String    @db.Char(36)
+  genreId        String    @db.Char(36)
+  provider       String    @db.VarChar(32)
+  sourceScope    String    @db.VarChar(16)
+  sourceEntityId String    @db.VarChar(100)
+  sourceUrl      String?   @db.VarChar(2048)
+  evidenceLevel  String    @db.VarChar(16)
+  fetchedAt      DateTime  @default(now())
+  expiresAt      DateTime?
+  track          Track     @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  genre          Genre     @relation(fields: [genreId], references: [id])
+
+  @@unique([trackId, genreId, provider, sourceScope, sourceEntityId])
+  @@index([genreId, trackId])
+}
+
+model TrackMood {
+  id             String    @id @default(uuid()) @db.Char(36)
+  trackId        String    @db.Char(36)
+  moodId         String    @db.Char(36)
+  provider       String    @db.VarChar(32)
+  sourceScope    String    @db.VarChar(16)
+  sourceEntityId String    @db.VarChar(100)
+  sourceUrl      String?   @db.VarChar(2048)
+  evidenceLevel  String    @db.VarChar(16)
+  fetchedAt      DateTime  @default(now())
+  expiresAt      DateTime?
+  track          Track     @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  mood           Mood      @relation(fields: [moodId], references: [id])
+
+  @@unique([trackId, moodId, provider, sourceScope, sourceEntityId])
+  @@index([moodId, trackId])
+}
+
+model Playlist {
+  id          String          @id @default(uuid()) @db.Char(36)
+  userId      String          @db.Char(36)
+  name        String          @db.VarChar(80)
+  description String          @default("") @db.VarChar(500)
+  version     Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tracks      PlaylistTrack[]
+
+  @@index([userId, updatedAt])
+}
+
+model PlaylistTrack {
+  playlistId String   @db.Char(36)
+  trackId    String   @db.Char(36)
+  position   Int
+  addedAt    DateTime @default(now())
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  track      Track    @relation(fields: [trackId], references: [id])
+
+  @@id([playlistId, trackId])
+  @@unique([playlistId, position])
+}

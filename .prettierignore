@@ -1,0 +1,7 @@
+node_modules
+package-lock.json
+apps/web/android
+apps/web/out
+apps/web/.next
+**/dist
+.runtime
