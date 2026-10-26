@@ -20,6 +20,16 @@ export function safeLink(value: string | undefined, hosts: RegExp): string | nul
     return null;
   }
 }
+export function appleArtworkUrl(value: string | undefined): string | null {
+  return safeLink(value, /^(?:[a-z0-9-]+\.)?mzstatic\.com$/);
+}
+export function appleStoreUrl(value: string | undefined): string | null {
+  const link = safeLink(value, /^(music|itunes)\.apple\.com$/);
+  if (!link) return null;
+  const url = new URL(link);
+  url.searchParams.set('app', 'itunes');
+  return url.href;
+}
 const song = z.object({
   trackId: z.number(),
   trackName: z.string(),
@@ -43,6 +53,7 @@ export function mapApple(data: unknown, country = 'US'): AppleTrack[] {
     const valid = song.safeParse(raw);
     if (!valid.success) return [];
     const t = valid.data;
+    const externalUrl = appleStoreUrl(t.trackViewUrl);
     const genre: Tag | undefined = t.primaryGenreName
       ? {
           slug: normalize(t.primaryGenreName).replaceAll(' ', '-'),
@@ -63,10 +74,8 @@ export function mapApple(data: unknown, country = 'US'): AppleTrack[] {
         artist: t.artistName,
         album: t.collectionName || '',
         durationMs: t.trackTimeMillis || 0,
-        // Apple's promotional artwork requires a compliant store-badge flow.
-        // Use original GYEOL artwork until those display rights are configured.
-        artworkUrl: null,
-        externalUrl: safeLink(t.trackViewUrl, /^(music|itunes)\.apple\.com$/),
+        artworkUrl: externalUrl ? appleArtworkUrl(t.artworkUrl100) : null,
+        externalUrl,
         palette: t.trackId % 16,
         isDemo: false,
         genres: genre ? [genre] : [],

@@ -32,9 +32,12 @@ npm run dev:web
 
 `init-env`는 무작위 로컬 자격증명을 생성하고 기존 `.env`를 보존합니다. 자격증명·서명키를 커밋하지 마세요. 컨테이너가 이미 초기화된 상태에서 `.env`의 DB 암호만 바꾸면 접속되지 않습니다. 데이터가 있는 볼륨을 임의로 삭제하지 말고 DB의 암호도 함께 안전하게 변경하세요.
 
+기존 MySQL이 3306 포트를 사용 중이면 `.env`에 `MYSQL_PORT=3307`을 추가하고 `DATABASE_URL`의 포트도 `3307`로 변경한 뒤 컨테이너를 시작하세요. 컨테이너 내부 포트는 3306을 유지합니다.
+
 ## 기능
 
 - 곡명·아티스트·장르 검색, 분위기 필터, 곡 상세
+- 곡 카드·상세에서 제목 복사, 검색창이나 다른 앱에 붙여넣기. 자동 복사 실패 시 직접 복사할 제목 선택창 제공
 - 곡·앨범·아티스트·검수 태그의 근거 범위 구분, 정보 부족 안내
 - 장르/분위기 Jaccard 유사도와 추천 이유, 추천곡으로 플레이리스트 일괄 생성
 - 이메일 가입·로그인, 회전하는 refresh session, 로그아웃 시 세션 폐기
@@ -73,7 +76,9 @@ E2E 실행 전 개발용 3000/4000 포트의 서버를 종료하세요. 테스�
 
 추천 후보는 현재 모드의 저장된 카탈로그에 한정됩니다. live 모드에서 후보가 적거나 곡 단위 태그가 없으면 추천이 비어 있을 수 있습니다. 세부 장르·분위기 전반의 커버리지를 보장하지 않습니다. 실제 수집 정책·저장 기간은 공급자 조건 확인 후 확정해야 합니다.
 
-Apple의 앨범 아트는 스토어 홍보·배지 조건이 있어 현재 화면에 사용하지 않습니다. 커버는 자체 CSS 그래픽입니다. MusicBrainz의 장르 연결·태그는 supplementary data로 **CC BY-NC-SA 3.0** 조건을 따릅니다. 곡 상세에 출처와 라이선스 링크를 표시하며, 공개·상업 출시 전에는 필요한 데이터 이용 허가를 해결해야 합니다. [공식 라이선스](https://musicbrainz.org/doc/About/Data_License), [데이터 구분](https://musicbrainz.org/doc/MusicBrainz_Database).
+검색 카드와 곡 상세에는 Apple API가 반환한 앨범 커버와 해당 곡의 iTunes Store 링크·공식 배지를 함께 표시합니다. 이미지 파일은 서버에 복사하지 않고 브라우저가 공급자 URL에서 직접 불러옵니다. DB에는 URL·출처·갱신 기한을 보관하며, 현재 로컬 정책은 메타데이터 갱신 후 24시간입니다. 갱신 기한이 지났거나 커버가 없거나 로딩에 실패한 경우 자체 CSS 커버를 사용합니다. 기존 곡은 다시 검색하거나 `catalog:sync`를 실행하면 갱신됩니다. 배지 없는 장식용 영역·추천·라이브러리는 자체 그래픽을 유지합니다. 이 구현이 공개·상업 사용에 필요한 모든 권리 확인을 완료했다는 의미는 아닙니다. [Apple API 조건](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/), [스토어 배지 지침](https://marketing.services.apple/itunes-identity-guidelines).
+
+MusicBrainz의 장르 연결·태그는 supplementary data로 **CC BY-NC-SA 3.0** 조건을 따릅니다. 곡 상세에 출처와 라이선스 링크를 표시하며, 공개·상업 출시 전에는 필요한 데이터 이용 허가를 해결해야 합니다. [공식 라이선스](https://musicbrainz.org/doc/About/Data_License), [데이터 구분](https://musicbrainz.org/doc/MusicBrainz_Database).
 
 ## DB 변경
 

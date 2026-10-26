@@ -1,2 +1,4 @@
 * text=auto
 *.bat text eol=crlf
+# Preserve the Apple-supplied badge bytes and original whitespace.
+apps/web/public/badges/*.svg -text -whitespace

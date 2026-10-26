@@ -24,6 +24,7 @@ flowchart TB
 ## 경계와 배치
 
 - `apps/web`: Next.js 화면, 검색·필터·플레이리스트 상태, API 클라이언트. 비밀정보와 추천 판정 로직을 넣지 않는다.
+- 검색 카드·곡 상세의 앨범 커버는 API에서 검증한 Apple CDN URL을 브라우저가 직접 불러온다. 해당 곡의 스토어 링크·공식 배지를 함께 표시하며, 다른 장식용 영역은 자체 그래픽을 사용한다. DB의 커버 갱신 기한이 지났거나 이미지 요청이 실패하면 대체 그래픽을 제공한다. 서버에서 이미지 파일을 가져오거나 보관하지 않는다.
 - `apps/api`: NestJS의 `auth`, `catalog`, `providers`, `taxonomy`, `recommendations`, `playlists`, `health` 모듈.
 - 초기 구현은 이 경계를 서비스·파일로 나누고 하나의 `AppModule`에서 조립한다. 규모가 커지면 Nest 모듈을 독립시킨다.
 - `packages/contracts`: 공개 요청·응답 스키마와 타입. Prisma 내부 모델이나 비밀번호 필드를 그대로 공개하지 않는다.

@@ -24,6 +24,30 @@ describe('provider boundaries', () => {
     expect(mapApple({ resultCount: 1, results: [{ trackId: 'bad' }] })).toEqual([]);
     expect(() => mapApple({ error: 'down' })).toThrow();
   });
+  it('pairs original provider artwork with its store link', () => {
+    const record = {
+      trackId: 1,
+      trackName: 'A',
+      artistName: 'B',
+      artworkUrl100: 'https://is1-ssl.mzstatic.com/image/thumb/a/100x100bb.jpg',
+      trackViewUrl: 'https://music.apple.com/us/album/a/123?i=1',
+    };
+    const [track] = mapApple({ resultCount: 1, results: [record] });
+    expect(track.artworkUrl).toBe(record.artworkUrl100);
+    expect(new URL(track.externalUrl!).searchParams.get('app')).toBe('itunes');
+    for (const url of [
+      'http://is1-ssl.mzstatic.com/a.jpg',
+      'https://mzstatic.com.evil.test/a.jpg',
+      'https://other.test/a.jpg',
+    ]) {
+      expect(
+        mapApple({ resultCount: 1, results: [{ ...record, artworkUrl100: url }] })[0].artworkUrl,
+      ).toBeNull();
+    }
+    expect(
+      mapApple({ resultCount: 1, results: [{ ...record, trackViewUrl: undefined }] })[0].artworkUrl,
+    ).toBeNull();
+  });
   it('normalizes unicode without merging distinct genres and uses stable ids', () => {
     expect(normalize('  ＪＡＺＺ  ')).toBe('jazz');
     expect(stableId('a')).toBe(stableId('a'));

@@ -3,7 +3,15 @@ import { Prisma } from '@prisma/client';
 import type { Tag, Track, Mode, SearchResult } from '@gyeol/contracts';
 import { Database } from '../db.js';
 import { recommend } from './recommend.js';
-import { normalize, recordingGenres, searchApple, stableId, type AppleTrack } from './providers.js';
+import {
+  normalize,
+  recordingGenres,
+  searchApple,
+  stableId,
+  appleArtworkUrl,
+  appleStoreUrl,
+  type AppleTrack,
+} from './providers.js';
 
 export const trackInclude = {
   artists: { include: { artist: true }, orderBy: { creditOrder: 'asc' as const } },
@@ -19,8 +27,14 @@ export function toTrack(t: Row): Track {
     artist: t.artists.map((x) => x.artist.name).join(', '),
     album: t.albumTitle,
     durationMs: t.durationMs,
-    artworkUrl: null, // Keep promotional provider artwork disabled until the rights workflow is ready.
-    externalUrl: t.externalUrl,
+    artworkUrl:
+      !t.isDemo &&
+      t.metadataExpiresAt &&
+      t.metadataExpiresAt.getTime() > now &&
+      appleStoreUrl(t.artworkSourceUrl || undefined)
+        ? appleArtworkUrl(t.artworkUrl || undefined)
+        : null,
+    externalUrl: appleStoreUrl(t.externalUrl || undefined),
     palette: t.palette,
     isDemo: t.isDemo,
     genres: t.genres

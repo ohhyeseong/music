@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type FormEvent,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import {
   ArrowDown,
@@ -18,6 +19,7 @@ import {
   Check,
   ChevronRight,
   Compass,
+  Copy,
   Disc3,
   ExternalLink,
   Headphones,
@@ -68,15 +70,54 @@ const palette = [
   ['#e6c789', '#9c5a2f', '#332719'],
   ['#c5a7f0', '#61458c', '#22192f'],
 ];
+function hasPromotionalCover(track: Track) {
+  if (track.isDemo || !track.artworkUrl || !track.externalUrl) return false;
+  try {
+    const cover = new URL(track.artworkUrl);
+    const store = new URL(track.externalUrl);
+    return (
+      cover.protocol === 'https:' &&
+      /^(?:[a-z0-9-]+\.)?mzstatic\.com$/.test(cover.hostname) &&
+      store.protocol === 'https:' &&
+      /^(music|itunes)\.apple\.com$/.test(store.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+function StoreBadge({ track }: { track: Track }) {
+  if (!hasPromotionalCover(track)) return null;
+  const store = new URL(track.externalUrl!);
+  store.searchParams.set('app', 'itunes');
+  return (
+    <a
+      className="store-badge"
+      href={store.href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`${track.title} iTunes Store에서 보기 (새 창)`}
+    >
+      <img
+        src="/badges/get-it-on-itunes.svg"
+        alt="Get it on iTunes Store"
+        width={103}
+        height={30}
+      />
+    </a>
+  );
+}
 function Artwork({
   track,
   className = '',
   decorative = false,
+  promotional = false,
 }: {
-  track: Pick<Track, 'palette' | 'title' | 'artworkUrl'>;
+  track: Track;
   className?: string;
   decorative?: boolean;
+  promotional?: boolean;
 }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const colors = palette[track.palette % palette.length];
   return (
     <div
@@ -84,14 +125,14 @@ function Artwork({
       style={{ '--art-a': colors[0], '--art-b': colors[1], '--art-c': colors[2] } as CSSProperties}
       aria-hidden={decorative || undefined}
     >
-      {track.artworkUrl ? (
+      {promotional && hasPromotionalCover(track) && failedUrl !== track.artworkUrl ? (
         <img
-          src={track.artworkUrl}
+          src={track.artworkUrl!}
           alt={decorative ? '' : `${track.title} 앨범 커버`}
           loading="lazy"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
+          className="album-cover-image"
+          referrerPolicy="no-referrer"
+          onError={() => setFailedUrl(track.artworkUrl)}
         />
       ) : (
         <>
@@ -113,18 +154,22 @@ function Dialog({
   children,
   onClose,
   wide = false,
+  initialInput,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  initialInput?: RefObject<HTMLInputElement | null>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
     if (dialog && !dialog.open) dialog.showModal();
+    initialInput?.current?.focus();
+    initialInput?.current?.select();
     return () => dialog?.close();
-  }, []);
+  }, [initialInput]);
   return (
     <dialog
       ref={ref}
@@ -150,6 +195,55 @@ function Dialog({
     </dialog>
   );
 }
+function CopyTitleButton({ title, compact = false }: { title: string; compact?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const [manual, setManual] = useState(false);
+  const manualInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 3000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(title);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+      setManual(true);
+    }
+  }
+  return (
+    <>
+      <button
+        type="button"
+        className={`copy-title-button ${compact ? 'copy-title-compact' : ''}`}
+        aria-label={`${title} 제목 복사`}
+        title={copied ? '제목을 복사했어요' : '노래 제목 복사'}
+        onClick={() => void copy()}
+      >
+        {copied ? <Check size={17} /> : <Copy size={17} />}
+        {!compact && <span>{copied ? '복사했어요' : '제목 복사'}</span>}
+        <span className="sr-only" role="status">
+          {copied ? '노래 제목을 복사했어요.' : ''}
+        </span>
+      </button>
+      {manual && (
+        <Dialog title="제목 직접 복사" onClose={() => setManual(false)} initialInput={manualInput}>
+          <p>자동 복사를 사용할 수 없어요. 아래 제목을 선택해 복사해 주세요.</p>
+          <input
+            className="manual-copy-input"
+            aria-label="복사할 노래 제목"
+            value={title}
+            readOnly
+            ref={manualInput}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        </Dialog>
+      )}
+    </>
+  );
+}
 function TrackCard({
   track,
   onSelect,
@@ -162,7 +256,7 @@ function TrackCard({
   return (
     <article className="track-card">
       <div className="card-image">
-        <Artwork track={track} decorative />
+        <Artwork track={track} promotional />
         <button
           className="card-image-button"
           onClick={() => onSelect(track)}
@@ -173,10 +267,12 @@ function TrackCard({
           </span>
         </button>
       </div>
+      <StoreBadge track={track} />
       <div className="track-card-line">
         <button className="track-title" onClick={() => onSelect(track)}>
           {track.title}
         </button>
+        <CopyTitleButton title={track.title} compact />
         <button
           className="card-save"
           aria-label={`${track.title} 플레이리스트에 추가`}
@@ -1001,12 +1097,16 @@ export default function Home() {
       {modal === 'detail' && selected && (
         <Dialog title="노래의 결" onClose={() => setModal(null)} wide>
           <div className="detail-main">
-            <Artwork track={selected} decorative />
+            <div className="detail-cover">
+              <Artwork track={selected} promotional />
+              <StoreBadge track={selected} />
+            </div>
             <div>
               <span className="eyebrow muted">
                 {selected.isDemo ? 'FICTIONAL SAMPLE TRACK' : 'TRACK INSIGHT'}
               </span>
-              <h2>{selected.title}</h2>
+              <h2 className="selectable-title">{selected.title}</h2>
+              <CopyTitleButton key={selected.id} title={selected.title} />
               <p className="detail-artist">{selected.artist}</p>
               <p className="detail-album">
                 {selected.album} · {minutes(selected.durationMs)}
