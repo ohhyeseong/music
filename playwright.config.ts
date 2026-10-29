@@ -10,6 +10,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
+    // Windows has no /usr/bin/chromium; use the installed Edge unless CHROMIUM_PATH is set.
+    channel: !process.env.CHROMIUM_PATH && process.platform === 'win32' ? 'msedge' : undefined,
     launchOptions: {
       executablePath:
         process.env.CHROMIUM_PATH ||

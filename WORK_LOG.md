@@ -136,3 +136,24 @@
 - 반영 범위: 앨범 커버/공식 스토어 배지·출처·만료·대체 처리, 제목 복사/권한 거부 시 수동 선택, MySQL 호스트 포트 설정, 관련 테스트·문서와 Next 생성 작업 지침. Next 실행이 바꾼 next-env.d.ts 개발용 타입 경로는 커밋 전 원래 경로로 복원했다.
 - 검증 근거: 최종 로직 변경 이후 lint·타입 검사, 단위 13개·MySQL 통합 19개·선별 브라우저 8개 통과. 실제 검색 커버 로딩과 DB 조회 일치 확인. 이번 커밋 준비 중에는 로직 변경이 없어 기능 테스트를 반복하지 않았다. 전체 기존 E2E/프로덕션/Android 빌드 미실행 상태는 이전 항목과 같다.
 - 공식 배지 SVG는 원본 바이트 보존을 위해 .gitattributes에서 줄바꿈 변환·공백 검사를 제외했다. 로컬 비밀값과 생성 산출물은 스테이징에서 제외하고 스테이징 검증 후 커밋한다. 실제 커밋 ID와 푸시 결과는 최종 응답에서 확인한다.
+
+## 2026-10-29 — 프로젝트 점검(코드 읽기 검토)
+
+- 요청: 프로젝트 전반의 부족한 점 점검. 코드 변경 없음.
+- 실행: lint, 타입 검사, 단위 테스트 13개 통과. Docker Desktop이 꺼져 있어 DB 통합 테스트·E2E·앱 실행은 미실행.
+- 읽은 코드: api의 app/auth/catalog/playlists. 지적 사항은 아래 응답에서 사용자에게 보고. 확인하지 않은 항목은 가설로 구분함.
+- 커밋·푸시·배포 없음.
+
+## 2026-10-29 — 전체 확인 실행(Windows)
+
+- Docker Desktop을 시작하고 MySQL 컨테이너 healthy 확인. 테스트는 임시 DB를 만들어 사용하며 개발 DB는 건드리지 않음.
+- 결과: lint·타입 통과, 단위 13개 통과, 통합 19개 통과(`npm run check` 중 첫 실행은 API 준비 대기 10초 초과로 19개 모두 실패했고 단독 재실행에서 통과 — 콜드 스타트 지연으로 추정, 원인 미확정), E2E 22개 통과(Edge 사용), 실제 공급자 `test:live` 4개 통과. 실패·건너뜀 0(재실행분 기준).
+- 문제 1: `apps/web/package.json`의 `NEXT_TELEMETRY_DISABLED=1 next build`가 Windows cmd에서 실패해 `npm run build`·`test:e2e`가 중단됨. 이번에는 코드 수정 없이 환경 변수를 셸에서 지정해 빌드. 수정은 미적용.
+- 문제 2: Playwright 번들 Chromium 미설치. `CHROMIUM_PATH`에 로컬 Edge를 지정해 실행. 설정 문제이며 앱 결함 아님.
+- 미실행: `npm run check` 단일 명령의 끝까지 통과, Android 빌드. 커밋·푸시·배포 없음.
+
+## 2026-10-29 — Windows에서 `npm run check` 통과하도록 수정
+
+- 변경: `scripts/next-build.mjs` 추가(Node에서 NEXT_TELEMETRY_DISABLED 지정 후 next build), `apps/web/package.json` build가 이를 호출, `scripts/test-db.mjs`의 API 준비 대기 10초→30초, `playwright.config.ts`에 CHROMIUM_PATH가 없는 Windows에서 Edge 채널 사용.
+- 결과: `npm run check` 단일 실행 exit 0 — lint·타입, 단위 13, 통합 19, 프로덕션 빌드, E2E 22 통과. 실패·건너뜀 0. Android 빌드·test:live는 이번 변경 후 미실행.
+- 커밋·푸시·배포 없음.

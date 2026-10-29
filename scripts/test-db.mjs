@@ -49,7 +49,7 @@ export async function startApi(env, port, logName) {
     stdio: ['ignore', log.fd, log.fd],
   });
   await log.close();
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 300; i++) {
     if (processHandle.exitCode !== null)
       throw new Error(`API exited during startup. See .runtime/${logName}.log`);
     try {

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
-    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "build": "node ../../scripts/next-build.mjs",
     "start": "next start"
   },
   "dependencies": {
