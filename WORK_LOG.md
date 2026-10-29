@@ -157,3 +157,12 @@
 - 변경: `scripts/next-build.mjs` 추가(Node에서 NEXT_TELEMETRY_DISABLED 지정 후 next build), `apps/web/package.json` build가 이를 호출, `scripts/test-db.mjs`의 API 준비 대기 10초→30초, `playwright.config.ts`에 CHROMIUM_PATH가 없는 Windows에서 Edge 채널 사용.
 - 결과: `npm run check` 단일 실행 exit 0 — lint·타입, 단위 13, 통합 19, 프로덕션 빌드, E2E 22 통과. 실패·건너뜀 0. Android 빌드·test:live는 이번 변경 후 미실행.
 - 커밋·푸시·배포 없음.
+
+## 2026-10-29 — 분위기 칩 정리와 상세 열 때 자동 장르 보강
+
+- 배경: 실제 모드에서 분위기 칩 6개가 모두 빈 결과로 이어지고, 대표곡(Aruarian Dance) 상세에 장르·추천이 비어 있었음.
+- apps/web/app/page.tsx: 불러온 곡에 실제로 있는 분위기만 칩으로 표시. 실제 모드에서 분위기 데이터가 전혀 없으면 칩을 숨기고 '아직 분위기 정보가 없어요' 안내. 분위기 데이터는 만들어내지 않음. 실제 곡 상세를 열면 곡 단위 장르가 없을 때 곡마다 1회 자동 보강(MusicBrainz enrich)하고 진행 상태를 표시. 수동 '세부 장르 확인' 버튼은 재시도용으로 유지. 보강 응답에 track이 없으면 선택 곡을 덮어쓰지 않도록 방어.
+- 실제 확인: Nujabes 검색 20곡에서 enrich 호출 시 Aruarian Dance·Luv(sic)·Counting Stars는 곡 단위(recording) 장르가 생겼고(Counting Stars에 nu jazz 포함) 일부 곡은 no_exact_match. 대표곡 장르는 자동 보강으로 해소되며 분위기 데이터는 여전히 없음.
+- 테스트: tests/e2e/live-enrich.spec.ts 추가(공급자 응답은 mock이며 UI 동작 검증). `npm run check` 통과: 단위 13, 통합 19, E2E 26(데스크톱·모바일), 실패·건너뜀 0.
+- 문제: 확인용으로 띄운 개발 API 감시 프로세스가 포트 4000을 다시 점유해 E2E가 라이브 모드로 돌며 16개 실패. 프로세스 정리 후 재실행해 해결(앱 결함 아님). 자동 보강이 mock 응답의 track 누락 시 상세를 닫는 결함은 방어 코드로 수정.
+- 미실행: 브라우저에서 변경 후 화면 눈 확인, Android 재빌드, test:live. 카드 장식 문구·긴 제목 정리와 홈 목록 정렬은 아직 안 함. 커밋·푸시 없음.

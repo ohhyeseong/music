@@ -321,7 +321,9 @@ export default function Home() {
     [mobileMenu, setMobileMenu] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null),
     searchSequence = useRef(0),
-    mixTracks = useRef<Track[]>([]);
+    mixTracks = useRef<Track[]>([]),
+    enrichTried = useRef(new Set<string>());
+  const [enriching, setEnriching] = useState('');
   const notice = (text: string) => setMessage(text);
   async function loadTracks(term: string, next?: string) {
     const sequence = ++searchSequence.current;
@@ -417,6 +419,27 @@ export default function Home() {
     setMobileMenu(false);
     if (next === 'search') setTimeout(() => searchInput.current?.focus(), 0);
   }
+  async function enrichTrack(track: Track) {
+    setEnriching(track.id);
+    try {
+      const data = await api<{ track: Track; enrichment: string }>(`tracks/${track.id}/enrich`, {
+        method: 'POST',
+      });
+      // Ignore a stale answer when another track was opened meanwhile.
+      setSelected((current) => (data.track && current?.id === track.id ? data.track : current));
+      return data.enrichment;
+    } finally {
+      setEnriching((current) => (current === track.id ? '' : current));
+    }
+  }
+  useEffect(() => {
+    if (modal !== 'detail' || !selected || selected.isDemo) return;
+    if (selected.genres.some((g) => g.scope === 'recording')) return;
+    if (enrichTried.current.has(selected.id)) return;
+    // One automatic attempt per track; the manual button stays available for a retry.
+    enrichTried.current.add(selected.id);
+    void enrichTrack(selected).catch(() => undefined);
+  }, [modal, selected?.id]);
   function openTrack(track: Track) {
     setSelected(track);
     setRecMode('balanced');
@@ -570,7 +593,14 @@ export default function Home() {
     setFormError('');
     setModal(user ? 'create' : 'auth');
   }
-  const filtered = tracks.filter((t) => mood === '전체' || t.moods.some((m) => m.name === mood));
+  // Only offer moods that some loaded track carries, so no chip leads to an empty list.
+  const availableMoods = moodList.filter(
+    (m) => m === '전체' || tracks.some((t) => t.moods.some((x) => x.name === m)),
+  );
+  const activeMood = availableMoods.includes(mood) ? mood : '전체';
+  const filtered = tracks.filter(
+    (t) => activeMood === '전체' || t.moods.some((m) => m.name === activeMood),
+  );
   const [heroA, heroB, heroC] = tracks;
   return (
     <div className="app-shell">
@@ -824,23 +854,36 @@ export default function Home() {
                   {catalogMode === 'demo' ? '샘플 체험' : '실제 곡 검색'}
                 </span>
               </div>
-              <div className="mood-row" role="group" aria-label="분위기 필터">
-                {moodList.map((m, i) => (
-                  <button
-                    key={m}
-                    aria-pressed={mood === m}
-                    className={`mood-chip ${mood === m ? 'selected' : ''}`}
-                    onClick={() => setMood(m)}
-                  >
-                    {i === 0 ? (
-                      <SlidersHorizontal size={14} />
-                    ) : (
-                      <span aria-hidden="true">{['', '✧', '☾', '☀', '↗', '♡', '≈'][i]}</span>
-                    )}
-                    {m}
-                  </button>
-                ))}
-              </div>
+              {availableMoods.length > 1 ? (
+                <div className="mood-row" role="group" aria-label="분위기 필터">
+                  {availableMoods.map((m) => (
+                    <button
+                      key={m}
+                      aria-pressed={activeMood === m}
+                      className={`mood-chip ${activeMood === m ? 'selected' : ''}`}
+                      onClick={() => setMood(m)}
+                    >
+                      {m === '전체' ? (
+                        <SlidersHorizontal size={14} />
+                      ) : (
+                        <span aria-hidden="true">
+                          {['', '✧', '☾', '☀', '↗', '♡', '≈'][moodList.indexOf(m)]}
+                        </span>
+                      )}
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                catalogMode === 'live' &&
+                !loading && (
+                  <p className="demo-note">
+                    <Disc3 size={15} />
+                    분위기 태그는 출처가 확인된 곡에만 표시해요. 지금 불러온 실제 곡에는 아직 분위기
+                    정보가 없어요.
+                  </p>
+                )
+              )}
               {catalogMode === 'demo' && (
                 <p className="demo-note">
                   <Disc3 size={15} />
@@ -890,7 +933,7 @@ export default function Home() {
                       : '아직 이 결의 음악을 찾지 못했어요'}
                   </h3>
                   <p>
-                    {mood !== '전체'
+                    {activeMood !== '전체'
                       ? '다른 분위기를 선택하거나 전체 음악을 살펴보세요.'
                       : '다른 곡명이나 아티스트 이름으로 다시 찾아보세요.'}
                   </p>
@@ -1129,7 +1172,9 @@ export default function Home() {
                     ? `제공처 메타데이터에 ${uniqueTags(selected.genres)
                         .map((g) => g.name)
                         .join(', ')} 분류가 있어요. 이 곡의 세부 장르는 추가 확인이 필요해요.`
-                    : '이 곡의 장르 정보가 아직 부족해요.'}
+                    : enriching === selected.id
+                      ? '곡 단위 장르 정보를 찾는 중이에요…'
+                      : '이 곡의 장르 정보가 아직 부족해요.'}
               </p>
               <div className="detail-moods">
                 {uniqueTags(selected.moods).map((m) => (
@@ -1154,19 +1199,15 @@ export default function Home() {
             {!selected.isDemo && (
               <button
                 className="text-button"
-                disabled={busy}
+                disabled={busy || enriching === selected.id}
                 onClick={async () => {
                   setBusy(true);
                   try {
-                    const data = await api<{ track: Track; enrichment: string }>(
-                      `tracks/${selected.id}/enrich`,
-                      { method: 'POST' },
-                    );
-                    setSelected(data.track);
+                    const result = await enrichTrack(selected);
                     notice(
-                      data.enrichment === 'provider_unavailable'
+                      result === 'provider_unavailable'
                         ? '세부 장르 제공처에 연결할 수 없어요.'
-                        : data.enrichment === 'no_exact_match'
+                        : result === 'no_exact_match'
                           ? '확실한 곡 단위 장르 정보를 찾지 못했어요.'
                           : '장르 정보를 확인했어요.',
                     );
@@ -1177,7 +1218,8 @@ export default function Home() {
                   }
                 }}
               >
-                세부 장르 확인 <Sparkles size={14} />
+                {enriching === selected.id ? '장르 정보 찾는 중…' : '세부 장르 확인'}{' '}
+                <Sparkles size={14} />
               </button>
             )}
             {selected.genres.some((g) => g.scope === 'recording') && (
